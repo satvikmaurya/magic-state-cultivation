@@ -71,12 +71,13 @@ def make_end2end_cultivation_circuit(
         basis: Literal['X', 'Y', 'Z'],
         r_growing: int,
         r_end: int,
-        inject_style: Literal['degenerate', 'bell', 'unitary']
+        inject_style: Literal['degenerate', 'bell', 'unitary'],
+        feedback_latency: int = 0,
 ) -> stim.Circuit:
     if dcolor == 3:
         inject_chunks = make_inject_and_cultivate_chunks_d3(style=inject_style)
     elif dcolor == 5:
-        inject_chunks = make_inject_and_cultivate_chunks_d5(style=inject_style)
+        inject_chunks = make_inject_and_cultivate_chunks_d5(style=inject_style, feedback_latency=feedback_latency)
     else:
         raise NotImplementedError(f'{dcolor=}')
 

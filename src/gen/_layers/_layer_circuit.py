@@ -260,6 +260,7 @@ class LayerCircuit:
                 or instruction.name == "Y_ERROR"
                 or instruction.name == "Z_ERROR"
                 or instruction.name == "DEPOLARIZE2"
+                or instruction.name == "PAULI_CHANNEL_1"
             ):
                 result._feed(NoiseLayer).circuit.append(instruction)
 

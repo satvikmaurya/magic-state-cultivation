@@ -1,6 +1,7 @@
 from typing import Literal
 
 import stim
+import numpy as np
 
 import gen
 from ._color_code import make_color_code, make_chunk_color_code_superdense_cycle
@@ -140,8 +141,13 @@ def make_chunk_d3_double_cat_check() -> gen.Chunk:
     return chunk.with_flag_added_to_all_flows('stage=cultivation')
 
 
-def make_chunk_d3_to_d5_color_code() -> gen.Chunk:
-    chunk = gen.Chunk.from_circuit_with_mpp_boundaries(stim.Circuit("""
+def make_chunk_d3_to_d5_color_code(feedback_latency: int = 0) -> gen.Chunk:
+    # Assume T1 and T2 times in us
+    T1 = 150 * 1e-6
+    T2 = 100 * 1e-6
+    px = py = (1 - np.exp(-(feedback_latency * 1e-9) / T1)) / 4
+    pz = (1 - np.exp(-(feedback_latency * 1e-9) / T2)) / 2
+    chunk = gen.Chunk.from_circuit_with_mpp_boundaries(stim.Circuit(f"""
         QUBIT_COORDS(0, 0) 0
         QUBIT_COORDS(1, 1) 1
         QUBIT_COORDS(2, 1) 2
@@ -208,6 +214,7 @@ def make_chunk_d3_to_d5_color_code() -> gen.Chunk:
         CX 13 14 18 19 17 16 12 11 6 7
         TICK
         M 14 19 16 11 7
+        PAULI_CHANNEL_1({px}, {py}, {pz}) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
         DETECTOR(5, 2, 0) rec[-5]
         DETECTOR(6, 2, 0) rec[-4]
         DETECTOR(5, 4, 0) rec[-3]
@@ -448,10 +455,11 @@ def make_inject_and_cultivate_chunks_d3(*, style: Literal['degenerate', 'bell', 
         raise NotImplementedError(f'style=')
 
 
-def make_inject_and_cultivate_chunks_d5(*, style: Literal['degenerate', 'bell', 'unitary']) -> list[gen.Chunk | gen.ChunkReflow]:
+def make_inject_and_cultivate_chunks_d5(*, style: Literal['degenerate', 'bell', 'unitary'],
+                                        feedback_latency: int = 0) -> list[gen.Chunk | gen.ChunkReflow]:
     return [
         *[chunk.with_obs_flows_as_det_flows() for chunk in make_inject_and_cultivate_chunks_d3(style=style)],
-        make_chunk_d3_to_d5_color_code().with_obs_flows_as_det_flows(),
+        make_chunk_d3_to_d5_color_code(feedback_latency=feedback_latency).with_obs_flows_as_det_flows(),
         make_chunk_color_code_superdense_cycle(make_color_code(5, obs_location='all'), obs_basis='Y').time_reversed().with_obs_flows_as_det_flows().with_flag_added_to_all_flows('stage=cultivation') * 3,
         make_chunk_d5_double_cat_check(),
     ]

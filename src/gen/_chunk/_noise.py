@@ -127,6 +127,7 @@ class NoiseModel:
             any_clifford_2q_rule = gen.NoiseRule(
                 after={"DEPOLARIZE2": any_clifford_2q_rule}
             )
+        self.added_pauli_channel = False
         self.idle_depolarization = idle_depolarization
         self.tick_noise = tick_noise
         self.additional_depolarization_waiting_for_m_or_r = (
@@ -213,6 +214,9 @@ class NoiseModel:
     ) -> NoiseRule | None:
         if occurs_in_classical_control_system(split_op):
             return None
+        
+        if split_op.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2']:
+            return None
 
         rule = self.gate_rules.get(split_op.name)
         if rule is not None:
@@ -279,6 +283,11 @@ class NoiseModel:
                 qubits_out = pauli_qubits
             elif gate_data.is_unitary:
                 qubits_out = clifford_qubits
+            elif split_op.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2']:
+                if not self.added_pauli_channel:
+                    out.append(split_op)
+                    self.added_pauli_channel = True
+                continue
             else:
                 raise NotImplementedError(f"{split_op=}")
             for target in split_op.targets_copy():
@@ -359,6 +368,11 @@ class NoiseModel:
         for split_op in moment_split_ops:
             rule = self._noise_rule_for_split_operation(split_op=split_op)
             if rule is None:
+                if split_op.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2']:
+                    if not self.added_pauli_channel:
+                        grow.append(split_op)
+                        self.added_pauli_channel = True
+                    continue
                 grow.append(split_op)
             elif split_op.name in "IXYZ":
                 new_targets = []

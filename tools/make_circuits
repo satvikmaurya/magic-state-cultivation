@@ -27,6 +27,7 @@ def main():
     parser.add_argument('--v', nargs='+', type=int, default=[None])
     parser.add_argument('--out_dir', type=str, required=True)
     parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--feedback_latency', nargs='+', type=int, default=[0], help='Feedback latency in nanoseconds for fixing non-deterministic detectors during the growth phase (default: 0)')
     args = parser.parse_args()
     out_dir = pathlib.Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -41,6 +42,7 @@ def main():
         r1,
         r2,
         v,
+        feedback_latency,
     ) in itertools.product(
         args.basis,
         args.noise_strength,
@@ -51,6 +53,7 @@ def main():
         args.r1,
         args.r2,
         args.v,
+        args.feedback_latency,
     ):
         if r1 is not None:
             r1 = int(eval(r1, {}, {'d1': d1, 'd2': d2}))
@@ -104,6 +107,7 @@ def main():
                 r_growing=r1,
                 r_end=r2,
                 inject_style='unitary',
+                feedback_latency=feedback_latency,
             )
             v = None
         elif circuit_type == 'escape-to-big-color-code':
@@ -152,6 +156,7 @@ def main():
             'r2': r2 or None,
             'd2': d2 or None,
             'v': v or None,
+            'fb': feedback_latency or None,
         }
         metadata = {k: v for k, v in metadata.items() if v is not None}
         meta_str = ','.join(f'{k}={v}' for k, v in metadata.items())
