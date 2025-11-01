@@ -28,6 +28,10 @@ def main():
     parser.add_argument('--out_dir', type=str, required=True)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--feedback_latency', nargs='+', type=int, default=[0], help='Feedback latency in nanoseconds for fixing non-deterministic detectors during the growth phase (default: 0)')
+    parser.add_argument('--readout_delta', nargs='+', type=float, default=[0], help='Increase in readout error rate due to fast readout')
+    parser.add_argument('--readout_duration', nargs='+', type=int, default=[600], help='Duration of fast readout in nanoseconds')
+    parser.add_argument('--t1', nargs='+', type=float, default=[250e-6], help='Qubit T1 time in seconds (default: 250e-6)')
+    parser.add_argument('--t2', nargs='+', type=float, default=[150e-6], help='Qubit T2 time in seconds (default: 150e-6)')
     args = parser.parse_args()
     out_dir = pathlib.Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +47,10 @@ def main():
         r2,
         v,
         feedback_latency,
+        readout_delta,
+        readout_duration,
+        t1,
+        t2,
     ) in itertools.product(
         args.basis,
         args.noise_strength,
@@ -54,6 +62,10 @@ def main():
         args.r2,
         args.v,
         args.feedback_latency,
+        args.readout_delta,
+        args.readout_duration,
+        args.t1,
+        args.t2,
     ):
         if r1 is not None:
             r1 = int(eval(r1, {}, {'d1': d1, 'd2': d2}))
@@ -137,7 +149,7 @@ def main():
         if gateset == 'cz':
             noise = 'si1000'
             circuit = gen.transpile_to_z_basis_interaction_circuit(circuit)
-            noise_model = gen.NoiseModel.si1000(noise_strength)
+            noise_model = gen.NoiseModel.si1000(noise_strength, readout_duration, readout_delta, t1, t2)
         else:
             noise = 'uniform'
             noise_model = gen.NoiseModel.uniform_depolarizing(noise_strength)
@@ -157,6 +169,10 @@ def main():
             'd2': d2 or None,
             'v': v or None,
             'fb': feedback_latency or None,
+            'rd': readout_duration or None,
+            'rdel': readout_delta or None,
+            't1': t1 or None,
+            't2': t2 or None,
         }
         metadata = {k: v for k, v in metadata.items() if v is not None}
         meta_str = ','.join(f'{k}={v}' for k, v in metadata.items())

@@ -112,6 +112,7 @@ class NoiseModel:
         idle_depolarization: float = 0,
         tick_noise: NoiseRule | None = None,
         additional_depolarization_waiting_for_m_or_r: float = 0,
+        measure_reset_idle=None,
         gate_rules: dict[str, NoiseRule] | None = None,
         measure_rules: dict[str, NoiseRule] | None = None,
         any_measurement_rule: NoiseRule | None = None,
@@ -133,6 +134,7 @@ class NoiseModel:
         self.additional_depolarization_waiting_for_m_or_r = (
             additional_depolarization_waiting_for_m_or_r
         )
+        self.measure_reset_idle = measure_reset_idle
         self.gate_rules = {} if gate_rules is None else gate_rules
         self.measure_rules = measure_rules
         self.any_measurement_rule = any_measurement_rule
@@ -144,7 +146,7 @@ class NoiseModel:
         assert self.tick_noise is None or not self.tick_noise.flip_result
 
     @staticmethod
-    def si1000(p: float) -> "NoiseModel":
+    def si1000(p: float, dur: float, delta: float, t1: float, t2: float) -> "NoiseModel":
         """Superconducting inspired noise.
 
         As defined in "A Fault-Tolerant Honeycomb Memory" https://arxiv.org/abs/2108.10457
@@ -153,14 +155,18 @@ class NoiseModel:
         is probabilistically flipped instead of the input qubit. The input qubit is depolarized after
         the measurement.
         """
+        import numpy as np
+        px = py = (1 - np.exp(-dur * 1e-9 / t1)) / 4
+        pz = (1 - np.exp(-dur * 1e-9 / t2)) / 2 - px
         return NoiseModel(
             idle_depolarization=p / 10,
             additional_depolarization_waiting_for_m_or_r=2 * p,
+            measure_reset_idle=[px, py, pz],
             any_clifford_1q_rule=NoiseRule(after={"DEPOLARIZE1": p / 10}),
             any_clifford_2q_rule=NoiseRule(after={"DEPOLARIZE2": p}),
             measure_rules={
-                "Z": NoiseRule(after={"DEPOLARIZE1": p}, flip_result=p * 5),
-                "ZZ": NoiseRule(after={"DEPOLARIZE2": p}, flip_result=p * 5),
+                "Z": NoiseRule(after={"DEPOLARIZE1": p}, flip_result=p * 5 * (1 + delta)),
+                "ZZ": NoiseRule(after={"DEPOLARIZE2": p}, flip_result=p * 5 * (1 + delta)),
             },
             gate_rules={
                 "R": NoiseRule(after={"X_ERROR": p * 2}),
@@ -273,16 +279,25 @@ class NoiseModel:
         collapse_qubits = []
         clifford_qubits = []
         pauli_qubits = []
+        measurement_qubits = []  # Track only qubits with measurements
+        
         for split_op in moment_split_ops:
             if occurs_in_classical_control_system(split_op):
                 continue
             gate_data = stim.gate_data(split_op.name)
             if gate_data.is_reset or gate_data.produces_measurements:
                 qubits_out = collapse_qubits
+                # Only add to measurement_qubits if it actually produces measurements
+                if gate_data.produces_measurements:
+                    measurement_qubits_out = measurement_qubits
+                else:
+                    measurement_qubits_out = None
             elif split_op.name in "IXYZ":
                 qubits_out = pauli_qubits
+                measurement_qubits_out = None
             elif gate_data.is_unitary:
                 qubits_out = clifford_qubits
+                measurement_qubits_out = None
             elif split_op.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2']:
                 if not self.added_pauli_channel:
                     out.append(split_op)
@@ -290,9 +305,12 @@ class NoiseModel:
                 continue
             else:
                 raise NotImplementedError(f"{split_op=}")
+            
             for target in split_op.targets_copy():
                 if not target.is_combiner:
                     qubits_out.append(target.value)
+                    if measurement_qubits_out is not None:
+                        measurement_qubits_out.append(target.value)
 
         # Safety check for operation collisions.
         usage_counts = collections.Counter(collapse_qubits + clifford_qubits)
@@ -316,25 +334,35 @@ class NoiseModel:
 
         collapse_qubits_set = set(collapse_qubits)
         clifford_qubits_set = set(clifford_qubits + pauli_qubits)
+        measurement_qubits_set = set(measurement_qubits)  # Only qubits that were measured
+        
         idle = sorted(
             system_qubit_indices
             - collapse_qubits_set
             - clifford_qubits_set
             - immune_qubit_indices
         )
-        if idle and self.idle_depolarization:
-            out.append("DEPOLARIZE1", idle, self.idle_depolarization)
 
         waiting_for_mr = sorted(
             system_qubit_indices - collapse_qubits_set - immune_qubit_indices
         )
-        if (
+        
+        # Apply idle depolarization when no measurements/resets occurred
+        if idle and self.idle_depolarization and not collapse_qubits_set:
+            out.append("DEPOLARIZE1", idle, self.idle_depolarization)
+        
+        # Apply thermal relaxation ONLY after measurements (not resets)
+        if measurement_qubits_set and idle and self.measure_reset_idle:
+            out.append('PAULI_CHANNEL_1', idle, self.measure_reset_idle)
+        # Apply additional depolarization for resets (when collapse happened but not measurement)
+        elif (
             collapse_qubits_set
+            and not measurement_qubits_set
             and waiting_for_mr
             and self.additional_depolarization_waiting_for_m_or_r
         ):
             out.append(
-                "DEPOLARIZE1", idle, self.additional_depolarization_waiting_for_m_or_r
+                "DEPOLARIZE1", waiting_for_mr, self.additional_depolarization_waiting_for_m_or_r
             )
 
         if self.tick_noise is not None:
