@@ -165,8 +165,8 @@ class NoiseModel:
             any_clifford_1q_rule=NoiseRule(after={"DEPOLARIZE1": p / 10}),
             any_clifford_2q_rule=NoiseRule(after={"DEPOLARIZE2": p}),
             measure_rules={
-                "Z": NoiseRule(after={"DEPOLARIZE1": p}, flip_result=p * 5 * (1 + delta)),
-                "ZZ": NoiseRule(after={"DEPOLARIZE2": p}, flip_result=p * 5 * (1 + delta)),
+                "Z": NoiseRule(after={"DEPOLARIZE1": p}, flip_result=p * 5 + delta),
+                "ZZ": NoiseRule(after={"DEPOLARIZE2": p}, flip_result=p * 5 + delta),
             },
             gate_rules={
                 "R": NoiseRule(after={"X_ERROR": p * 2}),

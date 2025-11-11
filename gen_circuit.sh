@@ -1,0 +1,5 @@
+./tools/make_circuits --circuit_type end2end-inplace-distillation --noise_strength 0.001 --gateset cz --out_dir out_ibm_real --basis Y --d1 3 --d2 15 --r1 "d1" --r2 5 --readout_delta 0 0.000001 0.000001 0.00001 0.00001 0.0008 0.004 0.03 0.11 0.35 --readout_duration 700 630 560 490 420 350 280 210 140 70 --t1 0.0003 --t2 0.0002
+
+./tools/make_circuits --circuit_type end2end-inplace-distillation --noise_strength 0.001 --gateset cz --out_dir out_ibm_future --basis Y --d1 3 --d2 15 --r1 "d1" --r2 5 --readout_delta 0 0.000001 0.000001 0.00001 0.00001 0.0008 0.004 0.03 0.11 0.35 --readout_duration 700 630 560 490 420 350 280 210 140 70 --t1 0.0005 --t2 0.0004
+
+./tools/make_circuits --circuit_type end2end-inplace-distillation --noise_strength 0.001 --gateset cz --out_dir out_google_real --basis Y --d1 3 --d2 15 --r1 "d1" --r2 5 --readout_delta 0 0.000001 0.000001 0.00001 0.00001 0.0008 0.004 0.03 0.11 0.35 --readout_duration 700 630 560 490 420 350 280 210 140 70 --t1 0.00007 --t2 0.00004
